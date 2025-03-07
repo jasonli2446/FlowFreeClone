@@ -1,42 +1,40 @@
 package com.flowfree.model;
 
+import java.util.Objects;
+
+/**
+ * Represents a cell in the game grid.
+ */
 public class Cell {
-  private int x;
-  private int y;
-  private String color;
+  private final Position position;
+  private Color color;
   private boolean isEndpoint;
   private boolean isPartOfPath;
 
-  public Cell(int x, int y, String color) {
-    this.x = x;
-    this.y = y;
-    this.color = color;
+  public Cell(Position position) {
+    this.position = position;
+    this.color = null;
     this.isEndpoint = false;
     this.isPartOfPath = false;
   }
 
-  // Getters and setters
-  public int getX() {
-    return x;
+  public Position getPosition() {
+    return position;
   }
 
-  public void setX(int x) {
-    this.x = x;
+  public int getRow() {
+    return position.getRow();
   }
 
-  public int getY() {
-    return y;
+  public int getCol() {
+    return position.getCol();
   }
 
-  public void setY(int y) {
-    this.y = y;
-  }
-
-  public String getColor() {
+  public Color getColor() {
     return color;
   }
 
-  public void setColor(String color) {
+  public void setColor(Color color) {
     this.color = color;
   }
 
@@ -60,8 +58,32 @@ public class Cell {
     return color == null;
   }
 
+  public void clear() {
+    if (!isEndpoint) {
+      this.color = null;
+      this.isPartOfPath = false;
+    }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+    Cell cell = (Cell) o;
+    return Objects.equals(position, cell.position);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(position);
+  }
+
   @Override
   public String toString() {
-    return "Cell[" + x + "," + y + "," + (color != null ? color : "empty") + "]";
+    return "Cell" + position + "[" + (color != null ? color : "empty") +
+        (isEndpoint ? ",endpoint" : "") +
+        (isPartOfPath ? ",path" : "") + "]";
   }
 }

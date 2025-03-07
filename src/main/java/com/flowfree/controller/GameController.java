@@ -2,185 +2,173 @@ package com.flowfree.controller;
 
 import com.flowfree.model.Grid;
 import com.flowfree.model.Cell;
-import com.flowfree.view.GameView;
-import java.util.*;
+import com.flowfree.model.Color;
+import com.flowfree.model.Position;
+import com.flowfree.view.GameBoard;
+import com.flowfree.service.PathFinderService;
+import com.flowfree.service.PuzzleService;
 
+import java.util.logging.Logger;
+
+/**
+ * Controller handling game logic and user interactions.
+ */
 public class GameController {
-  private Grid grid;
-  private GameView view;
-  private String currentColor;
+  private static final Logger LOGGER = Logger.getLogger(GameController.class.getName());
+
+  private final Grid grid;
+  private final GameBoard gameBoard;
+  private final PathFinderService pathFinderService;
+  private final PuzzleService puzzleService;
+
+  // Active drawing state
+  private Color currentColor;
   private Cell lastCellInPath;
   private boolean isDrawing;
+  private Position currentPosition;
 
-  // Track the current cell during dragging
-  private int currentPathRow = -1;
-  private int currentPathCol = -1;
-
-  public GameController(Grid grid, GameView view) {
+  public GameController(Grid grid, GameBoard gameBoard) {
     this.grid = grid;
-    this.view = view;
+    this.gameBoard = gameBoard;
+    this.pathFinderService = new PathFinderService(grid);
+    this.puzzleService = new PuzzleService();
     this.isDrawing = false;
 
-    // Set up event handlers in the view
     setupEventHandlers();
-
-    // Initialize a simple level for testing
-    initializeTestLevel();
+    loadInitialPuzzle();
   }
 
   private void setupEventHandlers() {
-    view.setOnCellClickHandler((row, col) -> handleCellClick(row, col));
-    view.setOnCellDragHandler((row, col) -> handleCellDrag(row, col));
-    view.setOnCellReleaseHandler((row, col) -> handleCellRelease(row, col));
+    gameBoard.setOnCellClickHandler(this::handleCellClick);
+    gameBoard.setOnCellDragHandler(this::handleCellDrag);
+    gameBoard.setOnCellReleaseHandler(this::handleCellRelease);
   }
 
-  private void initializeTestLevel() {
-    // Add some endpoints for testing
-    grid.addEndpoint(0, 0, "RED");
-    grid.addEndpoint(4, 4, "RED");
+  private void loadInitialPuzzle() {
+    // In a production app, this would load from PuzzleService
+    // For now, we create a test puzzle
+    createTestPuzzle();
+    gameBoard.updateView();
+  }
 
-    grid.addEndpoint(0, 4, "BLUE");
-    grid.addEndpoint(4, 0, "BLUE");
+  private void createTestPuzzle() {
+    grid.addEndpoint(0, 0, Color.RED);
+    grid.addEndpoint(4, 4, Color.RED);
 
-    grid.addEndpoint(2, 0, "GREEN");
-    grid.addEndpoint(2, 4, "GREEN");
+    grid.addEndpoint(0, 4, Color.BLUE);
+    grid.addEndpoint(4, 0, Color.BLUE);
 
-    // Update the view
-    view.updateView();
+    grid.addEndpoint(2, 0, Color.GREEN);
+    grid.addEndpoint(2, 4, Color.GREEN);
   }
 
   public void handleCellClick(int row, int col) {
     Cell cell = grid.getCell(row, col);
+    if (cell == null)
+      return;
 
-    System.out.println("Cell clicked: " + row + "," + col);
+    LOGGER.fine("Cell clicked: " + row + "," + col);
 
-    // If cell is an endpoint, start drawing a path
-    if (cell != null && cell.isEndpoint()) {
-      // Clear any existing path of this color
-      grid.clearPath(cell.getColor());
-
-      // Start a new path
-      currentColor = cell.getColor();
-      lastCellInPath = cell;
-      isDrawing = true;
-
-      // Initialize drag position tracking
-      currentPathRow = row;
-      currentPathCol = col;
-
-      System.out.println("Starting path from endpoint: " + cell);
-
-      // Update the view
-      view.updateView();
+    // Handle endpoint click - start a new path
+    if (cell.isEndpoint()) {
+      startNewPath(cell);
+      return;
     }
-    // Check if cell is the end of a path
-    else if (cell != null && cell.isPartOfPath() && !cell.isEndpoint()) {
-      // Find the path end cells for this color
-      Cell endCell = findLastCellInPath(cell.getColor());
 
-      // If this is indeed the end of a path, continue from here
-      if (endCell != null && endCell.getX() == row && endCell.getY() == col) {
-        currentColor = cell.getColor();
-        lastCellInPath = cell;
-        isDrawing = true;
-
-        // Initialize drag position tracking
-        currentPathRow = row;
-        currentPathCol = col;
-
-        System.out.println("Continuing path from: " + cell);
-      } else {
-        System.out.println("Clicked on middle of path (not the end)");
-      }
-    } else {
-      System.out.println("Clicked on non-endpoint cell");
+    // Handle path end click - continue a path
+    if (cell.isPartOfPath() && !cell.isEndpoint()) {
+      continuePathFromCell(cell);
     }
   }
 
-  private Cell findLastCellInPath(String color) {
-    List<Cell> pathCells = new ArrayList<>();
+  private void startNewPath(Cell cell) {
+    // Clear any existing path of this color
+    grid.clearPath(cell.getColor());
 
-    // Get all cells in the path (non-endpoints)
-    for (int r = 0; r < grid.getRows(); r++) {
-      for (int c = 0; c < grid.getCols(); c++) {
-        Cell cell = grid.getCell(r, c);
-        if (cell.isPartOfPath() && !cell.isEndpoint() &&
-            color.equals(cell.getColor())) {
-          pathCells.add(cell);
-        }
-      }
+    // Start a new path
+    currentColor = cell.getColor();
+    lastCellInPath = cell;
+    isDrawing = true;
+    currentPosition = cell.getPosition();
+
+    LOGGER.fine("Starting path from endpoint: " + cell);
+
+    // Update the view
+    gameBoard.updateView();
+  }
+
+  private void continuePathFromCell(Cell cell) {
+    // Find if this cell is at the end of a path
+    Cell pathEndCell = grid.findLastCellInPath(cell.getColor());
+
+    // If this is indeed the end of a path, continue from here
+    if (pathEndCell != null &&
+        pathEndCell.getRow() == cell.getRow() &&
+        pathEndCell.getCol() == cell.getCol()) {
+
+      currentColor = cell.getColor();
+      lastCellInPath = cell;
+      isDrawing = true;
+      currentPosition = cell.getPosition();
+
+      LOGGER.fine("Continuing path from: " + cell);
+    } else {
+      LOGGER.fine("Clicked on middle of path (not the end)");
     }
-
-    if (pathCells.isEmpty()) {
-      return null;
-    }
-
-    // Find cells with only one adjacent cell of the same color (path end)
-    for (Cell cell : pathCells) {
-      int adjacentSameColorCells = 0;
-      for (Cell adj : grid.getAdjacentCells(cell.getX(), cell.getY())) {
-        if (adj.getColor() != null && adj.getColor().equals(color)) {
-          adjacentSameColorCells++;
-        }
-      }
-
-      // A cell at the end of a path will have exactly one adjacent cell
-      // of the same color (or an endpoint of the same color)
-      if (adjacentSameColorCells == 1) {
-        return cell;
-      }
-    }
-
-    return null;
   }
 
   public void handleCellDrag(int row, int col) {
     if (!isDrawing)
       return;
 
-    System.out.println("Drag detected at: " + row + "," + col);
+    Position newPosition = new Position(row, col);
 
-    if (row == currentPathRow && col == currentPathCol) {
+    // Skip if position hasn't changed
+    if (currentPosition != null && currentPosition.equals(newPosition)) {
       return;
     }
 
-    // Check if the new cell is adjacent to the last cell in the path
+    LOGGER.fine("Drag detected at: " + row + "," + col);
+
     Cell targetCell = grid.getCell(row, col);
-
-    if (targetCell == null || lastCellInPath == null) {
+    if (targetCell == null || lastCellInPath == null)
       return;
-    }
 
     // Check if this is a valid move
-    boolean isValid = isValidNextCell(lastCellInPath, targetCell);
-    System.out.println("Valid move: " + isValid);
+    if (isValidNextCell(lastCellInPath, targetCell)) {
+      processCellDrag(targetCell, row, col);
+    }
+  }
 
-    if (isValid) {
-      // If the target cell is an endpoint of the same color, complete the path
-      if (targetCell.isEndpoint() && targetCell.getColor().equals(currentColor)) {
-        targetCell.setPartOfPath(true);
-        isDrawing = false;
-        lastCellInPath = null;
-        System.out.println("Path completed!");
+  private void processCellDrag(Cell targetCell, int row, int col) {
+    // If the target cell is an endpoint of the same color, complete the path
+    if (targetCell.isEndpoint() && targetCell.getColor() == currentColor) {
+      completeCurrentPath(targetCell);
+    } else if (targetCell.isEmpty()) {
+      // Set the color of the target cell
+      targetCell.setColor(currentColor);
+      targetCell.setPartOfPath(true);
+      lastCellInPath = targetCell;
+      LOGGER.fine("Added cell to path: " + row + "," + col);
+    }
 
-        // Check if the puzzle is complete
-        if (grid.isComplete()) {
-          System.out.println("Puzzle solved!");
-        }
-      } else if (targetCell.isEmpty()) {
-        // Set the color of the target cell
-        targetCell.setColor(currentColor);
-        targetCell.setPartOfPath(true);
-        lastCellInPath = targetCell;
-        System.out.println("Added cell to path: " + row + "," + col);
-      }
+    // Update tracking position
+    currentPosition = new Position(row, col);
 
-      // Update tracking position only on valid moves
-      currentPathRow = row;
-      currentPathCol = col;
+    // Update the view
+    gameBoard.updateCell(row, col);
+  }
 
-      // Update the view
-      view.updateCell(row, col);
+  private void completeCurrentPath(Cell targetCell) {
+    targetCell.setPartOfPath(true);
+    isDrawing = false;
+    lastCellInPath = null;
+    LOGGER.fine("Path completed!");
+
+    // Check if the puzzle is complete
+    if (grid.isComplete()) {
+      LOGGER.info("Puzzle solved!");
+      // Additional win condition handling can go here
     }
   }
 
@@ -188,9 +176,8 @@ public class GameController {
     // End the current path drawing
     isDrawing = false;
     lastCellInPath = null;
-    currentPathRow = -1;
-    currentPathCol = -1;
-    System.out.println("Mouse released at: " + row + "," + col);
+    currentPosition = null;
+    LOGGER.fine("Mouse released at: " + row + "," + col);
   }
 
   private boolean isValidNextCell(Cell current, Cell next) {
@@ -199,26 +186,12 @@ public class GameController {
     }
 
     // Check if cells are adjacent
-    int rowDiff = Math.abs(current.getX() - next.getX());
-    int colDiff = Math.abs(current.getY() - next.getY());
-
-    // Valid if exactly one step in any direction (not diagonal)
-    boolean isAdjacent = (rowDiff + colDiff == 1);
+    boolean isAdjacent = current.getPosition().isAdjacent(next.getPosition());
 
     // The next cell should be empty or an endpoint of the same color
     boolean isValidTarget = next.isEmpty() ||
-        (next.isEndpoint() && next.getColor().equals(currentColor));
+        (next.isEndpoint() && next.getColor() == currentColor);
 
     return isAdjacent && isValidTarget;
-  }
-
-  public void debugPath() {
-    System.out.println("----- PATH DEBUG INFO -----");
-    System.out.println("Current color: " + currentColor);
-    System.out.println("Is drawing: " + isDrawing);
-    System.out.println("Last cell: " +
-        (lastCellInPath != null ? lastCellInPath.getX() + "," + lastCellInPath.getY() : "null"));
-    System.out.println("Current path position: " + currentPathRow + "," + currentPathCol);
-    System.out.println("--------------------------");
   }
 }

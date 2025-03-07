@@ -2,97 +2,88 @@ package com.flowfree.model;
 
 import java.util.*;
 
+/**
+ * Represents the game grid containing cells.
+ */
 public class Grid {
-  private Cell[][] cells;
-  private Map<String, List<Cell>> flowEndpoints;
+  private final int rows;
+  private final int cols;
+  private final Cell[][] cells;
+  private final Map<Color, List<Cell>> endpointsByColor;
+
+  // Direction vectors for adjacent cell calculations
+  private static final int[][] DIRECTIONS = { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } };
 
   public Grid(int rows, int cols) {
-    cells = new Cell[rows][cols];
-    flowEndpoints = new HashMap<>();
+    this.rows = rows;
+    this.cols = cols;
+    this.cells = new Cell[rows][cols];
+    this.endpointsByColor = new EnumMap<>(Color.class);
 
-    // Initialize cells
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
-        cells[i][j] = new Cell(i, j, null);
+    initializeCells();
+  }
+
+  private void initializeCells() {
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        cells[row][col] = new Cell(new Position(row, col));
       }
     }
   }
 
-  // Getters and setters
-  public Cell getCell(int x, int y) {
-    if (x < 0 || x >= cells.length || y < 0 || y >= cells[0].length) {
-      return null;
-    }
-    return cells[x][y];
-  }
-
-  public void setCell(int x, int y, Cell cell) {
-    cells[x][y] = cell;
-  }
-
-  public Cell[][] getCells() {
-    return cells;
-  }
-
   public int getRows() {
-    return cells.length;
+    return rows;
   }
 
   public int getCols() {
-    return cells[0].length;
+    return cols;
   }
 
-  // Add an endpoint for a flow
-  public void addEndpoint(int x, int y, String color) {
-    Cell cell = getCell(x, y);
+  public Cell getCell(int row, int col) {
+    if (isValidPosition(row, col)) {
+      return cells[row][col];
+    }
+    return null;
+  }
+
+  public Cell getCell(Position position) {
+    return getCell(position.getRow(), position.getCol());
+  }
+
+  public boolean isValidPosition(int row, int col) {
+    return row >= 0 && row < rows && col >= 0 && col < cols;
+  }
+
+  public boolean isValidPosition(Position position) {
+    return isValidPosition(position.getRow(), position.getCol());
+  }
+
+  public void addEndpoint(int row, int col, Color color) {
+    Cell cell = getCell(row, col);
     if (cell != null) {
       cell.setColor(color);
       cell.setEndpoint(true);
 
-      if (!flowEndpoints.containsKey(color)) {
-        flowEndpoints.put(color, new ArrayList<>());
-      }
-      flowEndpoints.get(color).add(cell);
+      endpointsByColor.computeIfAbsent(color, k -> new ArrayList<>()).add(cell);
     }
   }
 
-  // Check if a move to the given cell is valid for the current color
-  public boolean isValidMove(int x, int y, String color) {
-    Cell cell = getCell(x, y);
-
-    // Cell must exist and be either empty or an endpoint of the same color
-    if (cell == null) {
-      return false;
-    }
-
-    if (cell.isEmpty() || (cell.isEndpoint() && color.equals(cell.getColor()))) {
-      return true;
-    }
-
-    return false;
+  public List<Cell> getEndpoints(Color color) {
+    return endpointsByColor.getOrDefault(color, Collections.emptyList());
   }
 
-  // Check if all cells are filled (puzzle complete)
-  public boolean isComplete() {
-    for (int i = 0; i < getRows(); i++) {
-      for (int j = 0; j < getCols(); j++) {
-        if (cells[i][j].getColor() == null) {
-          return false;
-        }
-      }
-    }
-    return true;
+  public List<Cell> getAdjacentCells(Cell cell) {
+    return getAdjacentCells(cell.getRow(), cell.getCol());
   }
 
-  // Get adjacent cells to the given coordinates
-  public List<Cell> getAdjacentCells(int x, int y) {
-    List<Cell> adjacentCells = new ArrayList<>();
+  public List<Cell> getAdjacentCells(int row, int col) {
+    List<Cell> adjacentCells = new ArrayList<>(4);
 
-    // Check four directions: up, right, down, left
-    int[][] directions = { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } };
+    for (int[] dir : DIRECTIONS) {
+      int newRow = row + dir[0];
+      int newCol = col + dir[1];
 
-    for (int[] dir : directions) {
-      Cell adjacent = getCell(x + dir[0], y + dir[1]);
+      Cell adjacent = getCell(newRow, newCol);
       if (adjacent != null) {
         adjacentCells.add(adjacent);
       }
@@ -101,16 +92,63 @@ public class Grid {
     return adjacentCells;
   }
 
-  // Clear a specific path (all non-endpoint cells of a color)
-  public void clearPath(String color) {
-    for (int i = 0; i < getRows(); i++) {
-      for (int j = 0; j < getCols(); j++) {
-        Cell cell = cells[i][j];
-        if (!cell.isEndpoint() && color.equals(cell.getColor())) {
-          cell.setColor(null);
-          cell.setPartOfPath(false);
+  public void clearPath(Color color) {
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        Cell cell = cells[row][col];
+        if (!cell.isEndpoint() &&
+            cell.getColor() != null &&
+            cell.getColor().equals(color)) {
+          cell.clear();
         }
       }
     }
+  }
+
+  public boolean isComplete() {
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        if (cells[row][col].isEmpty()) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  public Cell findLastCellInPath(Color color) {
+    List<Cell> pathCells = new ArrayList<>();
+
+    // Get all cells in the path (non-endpoints)
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        Cell cell = cells[row][col];
+        if (cell.isPartOfPath() &&
+            !cell.isEndpoint() &&
+            cell.getColor() == color) {
+          pathCells.add(cell);
+        }
+      }
+    }
+
+    if (pathCells.isEmpty()) {
+      return null;
+    }
+
+    // Find cells with only one adjacent cell of the same color (path end)
+    for (Cell cell : pathCells) {
+      int adjacentSameColorCount = 0;
+      for (Cell adjacent : getAdjacentCells(cell)) {
+        if (adjacent.getColor() == color) {
+          adjacentSameColorCount++;
+        }
+      }
+
+      if (adjacentSameColorCount == 1) {
+        return cell;
+      }
+    }
+
+    return null;
   }
 }
