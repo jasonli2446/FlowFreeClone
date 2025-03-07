@@ -72,9 +72,66 @@ public class GameController {
 
       // Update the view
       view.updateView();
+    }
+    // Check if cell is the end of a path
+    else if (cell != null && cell.isPartOfPath() && !cell.isEndpoint()) {
+      // Find the path end cells for this color
+      Cell endCell = findLastCellInPath(cell.getColor());
+
+      // If this is indeed the end of a path, continue from here
+      if (endCell != null && endCell.getX() == row && endCell.getY() == col) {
+        currentColor = cell.getColor();
+        lastCellInPath = cell;
+        isDrawing = true;
+
+        // Initialize drag position tracking
+        currentPathRow = row;
+        currentPathCol = col;
+
+        System.out.println("Continuing path from: " + cell);
+      } else {
+        System.out.println("Clicked on middle of path (not the end)");
+      }
     } else {
       System.out.println("Clicked on non-endpoint cell");
     }
+  }
+
+  private Cell findLastCellInPath(String color) {
+    List<Cell> pathCells = new ArrayList<>();
+
+    // Get all cells in the path (non-endpoints)
+    for (int r = 0; r < grid.getRows(); r++) {
+      for (int c = 0; c < grid.getCols(); c++) {
+        Cell cell = grid.getCell(r, c);
+        if (cell.isPartOfPath() && !cell.isEndpoint() &&
+            color.equals(cell.getColor())) {
+          pathCells.add(cell);
+        }
+      }
+    }
+
+    if (pathCells.isEmpty()) {
+      return null;
+    }
+
+    // Find cells with only one adjacent cell of the same color (path end)
+    for (Cell cell : pathCells) {
+      int adjacentSameColorCells = 0;
+      for (Cell adj : grid.getAdjacentCells(cell.getX(), cell.getY())) {
+        if (adj.getColor() != null && adj.getColor().equals(color)) {
+          adjacentSameColorCells++;
+        }
+      }
+
+      // A cell at the end of a path will have exactly one adjacent cell
+      // of the same color (or an endpoint of the same color)
+      if (adjacentSameColorCells == 1) {
+        return cell;
+      }
+    }
+
+    return null;
   }
 
   public void handleCellDrag(int row, int col) {
