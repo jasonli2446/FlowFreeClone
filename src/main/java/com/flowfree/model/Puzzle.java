@@ -1,7 +1,9 @@
 package com.flowfree.model;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a puzzle configuration with endpoints.
@@ -11,6 +13,7 @@ public class Puzzle {
   private final int rows;
   private final int cols;
   private final List<Endpoint> endpoints = new ArrayList<>();
+  private int[][] solution; // Complete solution grid
 
   public Puzzle(String name, int rows, int cols) {
     this.name = name;
@@ -39,6 +42,42 @@ public class Puzzle {
 
   public List<Endpoint> getEndpoints() {
     return endpoints;
+  }
+
+  /**
+   * Sets the complete solution grid.
+   */
+  public void setSolution(int[][] solution) {
+    this.solution = solution;
+  }
+
+  /**
+   * Gets the complete solution grid.
+   */
+  public int[][] getSolution() {
+    return solution;
+  }
+
+  /**
+   * Gets color paths from solution matrix.
+   */
+  public Map<Color, List<Position>> getSolutionPaths() {
+    Map<Color, List<Position>> paths = new HashMap<>();
+
+    if (solution != null) {
+      for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+          int colorIndex = solution[r][c];
+          if (colorIndex >= 0 && colorIndex < Color.values().length) {
+            Color color = Color.values()[colorIndex % Color.values().length];
+            paths.computeIfAbsent(color, k -> new ArrayList<>())
+                .add(new Position(r, c));
+          }
+        }
+      }
+    }
+
+    return paths;
   }
 
   /**

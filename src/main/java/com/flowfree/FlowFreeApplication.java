@@ -45,6 +45,7 @@ public class FlowFreeApplication extends Application {
     Button prevButton = new Button("Previous Level");
     Button resetButton = new Button("Reset");
     Button nextButton = new Button("Next Level");
+    Button showSolutionButton = new Button("Show Solution");
 
     // Set button actions
     prevButton.setOnAction(e -> {
@@ -61,7 +62,11 @@ public class FlowFreeApplication extends Application {
       levelLabel.setText("Level: " + (controller.getPuzzleService().getCurrentPuzzleIndex() + 1));
     });
 
-    controlsBox.getChildren().addAll(prevButton, resetButton, nextButton);
+    showSolutionButton.setOnAction(e -> {
+      controller.showSolution();
+    });
+
+    controlsBox.getChildren().addAll(prevButton, resetButton, nextButton, showSolutionButton);
 
     // Create top bar with level info
     HBox topBar = new HBox(levelLabel);
