@@ -30,13 +30,24 @@ public class PuzzleService {
   }
 
   private void createSamplePuzzles() {
-    // Generate some predefined puzzles
-    puzzles.add(generator.generatePuzzle("Easy Level 1", 5, 3));
-    puzzles.add(generator.generatePuzzle("Easy Level 2", 5, 4));
-    puzzles.add(generator.generatePuzzle("Medium Level 1", 5, 5));
-    puzzles.add(generator.generatePuzzle("Medium Level 2", 6, 5));
-    puzzles.add(generator.generatePuzzle("Hard Level 1", 6, 6));
-    puzzles.add(generator.generatePuzzle("Hard Level 2", 7, 7));
+    // Generate base puzzles
+    Puzzle puzzle1 = generator.generatePuzzle("Easy Level 1", 5, 3);
+    puzzles.add(generator.rearrangeFlows(puzzle1, 5));
+
+    Puzzle puzzle2 = generator.generatePuzzle("Easy Level 2", 5, 4);
+    puzzles.add(generator.rearrangeFlows(puzzle2, 6));
+
+    Puzzle puzzle3 = generator.generatePuzzle("Medium Level 1", 5, 5);
+    puzzles.add(generator.rearrangeFlows(puzzle3, 8));
+
+    Puzzle puzzle4 = generator.generatePuzzle("Medium Level 2", 6, 5);
+    puzzles.add(generator.rearrangeFlows(puzzle4, 10));
+
+    Puzzle puzzle5 = generator.generatePuzzle("Hard Level 1", 6, 6);
+    puzzles.add(generator.rearrangeFlows(puzzle5, 12));
+
+    Puzzle puzzle6 = generator.generatePuzzle("Hard Level 2", 7, 7);
+    puzzles.add(generator.rearrangeFlows(puzzle6, 15));
   }
 
   /**
