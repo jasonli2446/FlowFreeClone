@@ -215,10 +215,7 @@ public class GameController {
   }
 
   /**
-   * Temporarily shows the solution for the current puzzle.
-   */
-  /**
-   * Temporarily shows a valid solution for the current puzzle.
+   * Shows the solution for the current puzzle.
    */
   public void showSolution() {
     Puzzle currentPuzzle = puzzleService.getCurrentPuzzle();
@@ -228,21 +225,6 @@ public class GameController {
     }
 
     LOGGER.info("Showing solution");
-
-    // Save current grid state to restore later
-    final Grid savedState = new Grid(grid.getRows(), grid.getCols());
-    for (int r = 0; r < grid.getRows(); r++) {
-      for (int c = 0; c < grid.getCols(); c++) {
-        Cell origCell = grid.getCell(r, c);
-        Cell savedCell = savedState.getCell(r, c);
-
-        if (origCell.getColor() != null) {
-          savedCell.setColor(origCell.getColor());
-          savedCell.setEndpoint(origCell.isEndpoint());
-          savedCell.setPartOfPath(origCell.isPartOfPath());
-        }
-      }
-    }
 
     // Clear all non-endpoint cells first
     for (int r = 0; r < grid.getRows(); r++) {
@@ -277,38 +259,8 @@ public class GameController {
       }
     }
 
-    // Update the view
+    // Update the view to show the solution
     gameBoard.updateView();
-
-    // Schedule task to restore original state after a delay
-    new Thread(() -> {
-      try {
-        // Show solution for 3 seconds
-        Thread.sleep(3000);
-
-        // Return to JavaFX thread to update UI
-        javafx.application.Platform.runLater(() -> {
-          // Restore saved grid state
-          for (int r = 0; r < grid.getRows(); r++) {
-            for (int c = 0; c < grid.getCols(); c++) {
-              Cell origCell = grid.getCell(r, c);
-              Cell savedCell = savedState.getCell(r, c);
-
-              origCell.setColor(savedCell.getColor());
-              origCell.setEndpoint(savedCell.isEndpoint());
-              origCell.setPartOfPath(savedCell.isPartOfPath());
-            }
-          }
-
-          // Update the view again
-          gameBoard.updateView();
-          LOGGER.info("Solution hidden, restored original state");
-        });
-      } catch (InterruptedException e) {
-        LOGGER.warning("Solution display interrupted: " + e.getMessage());
-        Thread.currentThread().interrupt();
-      }
-    }).start();
   }
 
   /**
