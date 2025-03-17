@@ -10,8 +10,13 @@ import com.flowfree.service.PathFinderService;
 import com.flowfree.service.PuzzleService;
 import com.flowfree.service.GameStateService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.logging.Logger;
 
 /**
@@ -212,10 +217,13 @@ public class GameController {
   /**
    * Temporarily shows the solution for the current puzzle.
    */
+  /**
+   * Temporarily shows a valid solution for the current puzzle.
+   */
   public void showSolution() {
     Puzzle currentPuzzle = puzzleService.getCurrentPuzzle();
-    if (currentPuzzle == null || currentPuzzle.getSolution() == null) {
-      LOGGER.warning("No solution available to show!");
+    if (currentPuzzle == null) {
+      LOGGER.warning("No puzzle available to solve!");
       return;
     }
 
@@ -236,23 +244,36 @@ public class GameController {
       }
     }
 
-    // Apply solution to grid
-    Map<Color, List<Position>> solutionPaths = currentPuzzle.getSolutionPaths();
-    int[][] solution = currentPuzzle.getSolution();
-
+    // Clear all non-endpoint cells first
     for (int r = 0; r < grid.getRows(); r++) {
       for (int c = 0; c < grid.getCols(); c++) {
-        int colorIndex = solution[r][c];
-        if (colorIndex >= 0 && colorIndex < Color.values().length) {
-          Color color = Color.values()[colorIndex % Color.values().length];
-          Cell cell = grid.getCell(r, c);
+        Cell cell = grid.getCell(r, c);
+        if (!cell.isEndpoint()) {
+          cell.clear();
+        }
+      }
+    }
 
-          // Only set color if cell is empty or already an endpoint of this color
-          if (!cell.isEndpoint() || cell.getColor() == color) {
+    // For each color, find a path between its endpoints
+    for (Puzzle.Endpoint endpoint : currentPuzzle.getEndpoints()) {
+      Color color = endpoint.color;
+      Position start = new Position(endpoint.startRow, endpoint.startCol);
+      Position end = new Position(endpoint.endRow, endpoint.endCol);
+
+      // Find a path between the endpoints
+      List<Position> path = findPath(start, end, grid.getRows(), grid.getCols(), grid);
+
+      // Apply the path to the grid
+      if (!path.isEmpty()) {
+        for (Position pos : path) {
+          Cell cell = grid.getCell(pos);
+          if (cell != null && !cell.isEndpoint()) {
             cell.setColor(color);
             cell.setPartOfPath(true);
           }
         }
+      } else {
+        LOGGER.warning("Couldn't find path for color " + color);
       }
     }
 
@@ -288,6 +309,68 @@ public class GameController {
         Thread.currentThread().interrupt();
       }
     }).start();
+  }
+
+  /**
+   * Finds a path between two positions.
+   */
+  private List<Position> findPath(Position start, Position end, int rows, int cols, Grid grid) {
+    // Use BFS to find the shortest path
+    Queue<Position> queue = new LinkedList<>();
+    Map<Position, Position> parentMap = new HashMap<>();
+    boolean[][] visited = new boolean[rows][cols];
+
+    queue.add(start);
+    visited[start.getRow()][start.getCol()] = true;
+
+    int[][] directions = { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } }; // Up, Right, Down, Left
+
+    while (!queue.isEmpty()) {
+      Position current = queue.poll();
+
+      if (current.equals(end)) {
+        // Path found, reconstruct it
+        List<Position> path = new ArrayList<>();
+        Position pos = current;
+
+        while (!pos.equals(start)) {
+          path.add(pos);
+          pos = parentMap.get(pos);
+        }
+
+        Collections.reverse(path);
+        return path;
+      }
+
+      // Try all four directions
+      for (int[] dir : directions) {
+        int newRow = current.getRow() + dir[0];
+        int newCol = current.getCol() + dir[1];
+        Position next = new Position(newRow, newCol);
+
+        // Check if the position is valid and not visited
+        if (isValidPosition(newRow, newCol, rows, cols) && !visited[newRow][newCol]) {
+          Cell cell = grid.getCell(newRow, newCol);
+
+          // Only consider empty cells or the destination endpoint
+          if (cell.isEmpty() || next.equals(end)) {
+            queue.add(next);
+            visited[newRow][newCol] = true;
+            parentMap.put(next, current);
+          }
+        }
+      }
+    }
+
+    // No path found
+    return Collections.emptyList();
+  }
+
+  /**
+   * Checks if a position is valid.
+   */
+  private boolean isValidPosition(int row, int col, int rows, int cols) {
+    return row >= 0 && row < rows && col >= 0 && col < cols;
   }
 
   private void startNewPath(Cell cell) {
