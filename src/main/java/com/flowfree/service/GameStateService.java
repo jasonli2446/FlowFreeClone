@@ -11,7 +11,7 @@ import java.util.Map;
  * Service for managing game state and metrics.
  */
 public class GameStateService {
-  private final Grid grid;
+  private Grid grid;
   private boolean puzzleCompleted = false;
   private int moveCount = 0;
   private long startTime;
@@ -19,6 +19,14 @@ public class GameStateService {
   public GameStateService(Grid grid) {
     this.grid = grid;
     resetStats();
+  }
+
+  /**
+   * Updates the grid reference.
+   * Used when grid size changes.
+   */
+  public void setGrid(Grid grid) {
+    this.grid = grid;
   }
 
   /**

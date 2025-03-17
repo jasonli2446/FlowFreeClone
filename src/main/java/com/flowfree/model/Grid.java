@@ -58,11 +58,15 @@ public class Grid {
     return isValidPosition(position.getRow(), position.getCol());
   }
 
+  /**
+   * Add an endpoint for a path
+   */
   public void addEndpoint(int row, int col, Color color) {
     Cell cell = getCell(row, col);
     if (cell != null) {
       cell.setColor(color);
       cell.setEndpoint(true);
+      cell.setPartOfPath(false);
 
       endpointsByColor.computeIfAbsent(color, k -> new ArrayList<>()).add(cell);
     }
@@ -101,6 +105,22 @@ public class Grid {
             cell.getColor().equals(color)) {
           cell.clear();
         }
+      }
+    }
+  }
+
+  /**
+   * Completely clears all cells in the grid, including endpoints
+   */
+  public void clearAll() {
+    endpointsByColor.clear();
+
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        Cell cell = cells[row][col];
+        cell.setColor(null);
+        cell.setEndpoint(false);
+        cell.setPartOfPath(false);
       }
     }
   }

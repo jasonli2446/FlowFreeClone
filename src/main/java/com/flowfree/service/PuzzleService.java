@@ -14,6 +14,7 @@ import java.util.List;
 public class PuzzleService {
   private final List<Puzzle> puzzles = new ArrayList<>();
   private int currentPuzzleIndex = 0;
+  private final PuzzleGenerator generator = new PuzzleGenerator();
 
   public PuzzleService() {
     loadPuzzles();
@@ -29,29 +30,25 @@ public class PuzzleService {
   }
 
   private void createSamplePuzzles() {
-    // Sample puzzle 1 (5x5)
-    Puzzle puzzle1 = new Puzzle("Easy Level 1", 5, 5);
-    puzzle1.addEndpoint(0, 0, Color.RED, 4, 4);
-    puzzle1.addEndpoint(0, 4, Color.BLUE, 4, 0);
-    puzzle1.addEndpoint(2, 0, Color.GREEN, 2, 4);
-    puzzles.add(puzzle1);
+    // Generate some predefined puzzles
+    puzzles.add(generator.generatePuzzle("Easy Level 1", 5, 3));
+    puzzles.add(generator.generatePuzzle("Easy Level 2", 5, 4));
+    puzzles.add(generator.generatePuzzle("Medium Level 1", 5, 5));
+    puzzles.add(generator.generatePuzzle("Medium Level 2", 6, 5));
+    puzzles.add(generator.generatePuzzle("Hard Level 1", 6, 6));
+    puzzles.add(generator.generatePuzzle("Hard Level 2", 7, 7));
+  }
 
-    // Sample puzzle 2 (5x5)
-    Puzzle puzzle2 = new Puzzle("Easy Level 2", 5, 5);
-    puzzle2.addEndpoint(0, 0, Color.RED, 4, 4);
-    puzzle2.addEndpoint(0, 4, Color.BLUE, 4, 0);
-    puzzle2.addEndpoint(1, 2, Color.GREEN, 3, 2);
-    puzzle2.addEndpoint(2, 1, Color.YELLOW, 2, 3);
-    puzzles.add(puzzle2);
-
-    // Sample puzzle 3 (5x5)
-    Puzzle puzzle3 = new Puzzle("Medium Level 1", 5, 5);
-    puzzle3.addEndpoint(0, 0, Color.RED, 4, 4);
-    puzzle3.addEndpoint(0, 4, Color.BLUE, 4, 0);
-    puzzle3.addEndpoint(2, 0, Color.GREEN, 2, 4);
-    puzzle3.addEndpoint(1, 2, Color.YELLOW, 3, 2);
-    puzzle3.addEndpoint(0, 2, Color.PURPLE, 4, 2);
-    puzzles.add(puzzle3);
+  /**
+   * Generates a new random puzzle with the specified parameters.
+   *
+   * @param name     Name for the puzzle
+   * @param size     Grid size (size x size)
+   * @param numFlows Number of colored flows
+   * @return The newly generated puzzle
+   */
+  public Puzzle generateRandomPuzzle(String name, int size, int numFlows) {
+    return generator.generatePuzzle(name, size, numFlows);
   }
 
   /**
@@ -90,22 +87,57 @@ public class PuzzleService {
     Puzzle puzzle = puzzles.get(puzzleIndex);
     currentPuzzleIndex = puzzleIndex;
 
+    // Create a new grid with the correct size if needed
+    if (grid.getRows() != puzzle.getRows() || grid.getCols() != puzzle.getCols()) {
+      // We need to create a new grid with the correct size
+      // But we don't have direct access to change the grid here
+      // This should be handled by the controller
+      return false;
+    }
+
     // Reset the grid
     for (int row = 0; row < grid.getRows(); row++) {
       for (int col = 0; col < grid.getCols(); col++) {
         Cell cell = grid.getCell(row, col);
-        cell.clear();
-        cell.setEndpoint(false);
+        if (cell != null) {
+          cell.setColor(null);
+          cell.setEndpoint(false);
+          cell.setPartOfPath(false);
+        }
       }
     }
 
-    // Set endpoints
+    // Set endpoints only
     puzzle.getEndpoints().forEach(endpoint -> {
-      grid.addEndpoint(endpoint.startRow, endpoint.startCol, endpoint.color);
-      grid.addEndpoint(endpoint.endRow, endpoint.endCol, endpoint.color);
+      // Add first endpoint
+      Cell startCell = grid.getCell(endpoint.startRow, endpoint.startCol);
+      if (startCell != null) {
+        startCell.setColor(endpoint.color);
+        startCell.setEndpoint(true);
+        startCell.setPartOfPath(false);
+      }
+
+      // Add second endpoint
+      Cell endCell = grid.getCell(endpoint.endRow, endpoint.endCol);
+      if (endCell != null) {
+        endCell.setColor(endpoint.color);
+        endCell.setEndpoint(true);
+        endCell.setPartOfPath(false);
+      }
     });
 
     return true;
+  }
+
+  /**
+   * Adds a newly generated puzzle to the puzzle list.
+   *
+   * @param puzzle The puzzle to add
+   * @return The index of the added puzzle
+   */
+  public int addPuzzle(Puzzle puzzle) {
+    puzzles.add(puzzle);
+    return puzzles.size() - 1;
   }
 
   /**
@@ -132,5 +164,22 @@ public class PuzzleService {
       return loadPuzzle(grid, currentPuzzleIndex - 1);
     }
     return false;
+  }
+
+  /**
+   * Gets the total number of puzzles.
+   */
+  public int getPuzzleCount() {
+    return puzzles.size();
+  }
+
+  /**
+   * Gets a puzzle by index.
+   */
+  public Puzzle getPuzzle(int index) {
+    if (index >= 0 && index < puzzles.size()) {
+      return puzzles.get(index);
+    }
+    return null;
   }
 }

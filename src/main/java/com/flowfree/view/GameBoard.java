@@ -17,9 +17,9 @@ import com.flowfree.model.Position;
  * Visual representation of the game board.
  */
 public class GameBoard extends Pane {
-  private final Grid grid;
-  private final GridPane gridPane;
-  private final Rectangle[][] cellViews;
+  private Grid grid;
+  private GridPane gridPane;
+  private Rectangle[][] cellViews;
 
   private BiConsumer<Integer, Integer> cellClickHandler;
   private BiConsumer<Integer, Integer> cellDragHandler;
@@ -160,6 +160,35 @@ public class GameBoard extends Pane {
     if (grid.isValidPosition(row, col)) {
       updateCellAppearance(cellViews[row][col], grid.getCell(row, col));
     }
+  }
+
+  /**
+   * Replaces the grid with a new grid of potentially different size.
+   */
+  public void replaceGrid(Grid newGrid) {
+    this.grid = newGrid;
+
+    // Remove existing grid view
+    this.getChildren().remove(gridPane);
+
+    // Create new grid with appropriate size
+    int rows = grid.getRows();
+    int cols = grid.getCols();
+    this.cellViews = new Rectangle[rows][cols];
+
+    // Clear and rebuild the gridPane
+    gridPane.getChildren().clear();
+
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        Rectangle rect = createCellView(row, col);
+        gridPane.add(rect, col, row);
+        cellViews[row][col] = rect;
+      }
+    }
+
+    this.getChildren().add(gridPane);
+    updateView();
   }
 
   // Event handler setters

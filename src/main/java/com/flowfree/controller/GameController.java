@@ -4,9 +4,11 @@ import com.flowfree.model.Grid;
 import com.flowfree.model.Cell;
 import com.flowfree.model.Color;
 import com.flowfree.model.Position;
+import com.flowfree.model.Puzzle;
 import com.flowfree.view.GameBoard;
 import com.flowfree.service.PathFinderService;
 import com.flowfree.service.PuzzleService;
+import com.flowfree.service.GameStateService;
 
 import java.util.logging.Logger;
 
@@ -16,10 +18,11 @@ import java.util.logging.Logger;
 public class GameController {
   private static final Logger LOGGER = Logger.getLogger(GameController.class.getName());
 
-  private final Grid grid;
+  private Grid grid;
   private final GameBoard gameBoard;
-  private final PathFinderService pathFinderService;
+  private PathFinderService pathFinderService;
   private final PuzzleService puzzleService;
+  private final GameStateService gameStateService;
 
   // Active drawing state
   private Color currentColor;
@@ -32,10 +35,13 @@ public class GameController {
     this.gameBoard = gameBoard;
     this.pathFinderService = new PathFinderService(grid);
     this.puzzleService = new PuzzleService();
+    this.gameStateService = new GameStateService(grid);
     this.isDrawing = false;
 
+    // Store reference to this controller in the game board
+    gameBoard.getProperties().put("controller", this);
+
     setupEventHandlers();
-    loadInitialPuzzle();
   }
 
   private void setupEventHandlers() {
@@ -44,22 +50,140 @@ public class GameController {
     gameBoard.setOnCellReleaseHandler(this::handleCellRelease);
   }
 
-  private void loadInitialPuzzle() {
-    // In a production app, this would load from PuzzleService
-    // For now, we create a test puzzle
-    createTestPuzzle();
+  /**
+   * Loads the initial puzzle when the game starts
+   */
+  public void loadInitialPuzzle() {
+    Puzzle puzzle = puzzleService.getCurrentPuzzle();
+    if (puzzle == null) {
+      LOGGER.warning("No puzzles available!");
+      return;
+    }
+
+    // Check if we need to update the grid size
+    if (grid.getRows() != puzzle.getRows() || grid.getCols() != puzzle.getCols()) {
+      updateGridSize(puzzle.getRows(), puzzle.getCols());
+    }
+
+    if (!puzzleService.loadPuzzle(grid, 0)) {
+      LOGGER.warning("Failed to load initial puzzle!");
+    }
     gameBoard.updateView();
+    gameStateService.resetStats();
   }
 
-  private void createTestPuzzle() {
-    grid.addEndpoint(0, 0, Color.RED);
-    grid.addEndpoint(4, 4, Color.RED);
+  /**
+   * Updates the grid to a new size and reinitializes components
+   */
+  private void updateGridSize(int rows, int cols) {
+    LOGGER.info("Updating grid size to " + rows + "x" + cols);
 
-    grid.addEndpoint(0, 4, Color.BLUE);
-    grid.addEndpoint(4, 0, Color.BLUE);
+    // Create a new grid with the required size
+    this.grid = new Grid(rows, cols);
 
-    grid.addEndpoint(2, 0, Color.GREEN);
-    grid.addEndpoint(2, 4, Color.GREEN);
+    // Update dependent components
+    this.pathFinderService = new PathFinderService(grid);
+    this.gameStateService.setGrid(grid);
+
+    // Update the game board with the new grid
+    gameBoard.replaceGrid(grid);
+  }
+
+  /**
+   * Resets the current puzzle to its initial state
+   */
+  public void resetPuzzle() {
+    int currentIndex = puzzleService.getCurrentPuzzleIndex();
+    LOGGER.info("Resetting puzzle at index: " + currentIndex);
+
+    Puzzle currentPuzzle = puzzleService.getCurrentPuzzle();
+    if (currentPuzzle == null) {
+      LOGGER.warning("No current puzzle to reset!");
+      return;
+    }
+
+    // First, clear all non-endpoint cells
+    for (int row = 0; row < grid.getRows(); row++) {
+      for (int col = 0; col < grid.getCols(); col++) {
+        Cell cell = grid.getCell(row, col);
+        if (cell != null && !cell.isEndpoint()) {
+          cell.clear();
+        }
+      }
+    }
+
+    // Now make sure all endpoints are properly marked as not part of a path
+    for (Puzzle.Endpoint endpoint : currentPuzzle.getEndpoints()) {
+      Cell startCell = grid.getCell(endpoint.startRow, endpoint.startCol);
+      Cell endCell = grid.getCell(endpoint.endRow, endpoint.endCol);
+
+      if (startCell != null) {
+        startCell.setPartOfPath(false);
+      }
+
+      if (endCell != null) {
+        endCell.setPartOfPath(false);
+      }
+    }
+
+    // Reset game state
+    gameBoard.updateView();
+    gameStateService.resetStats();
+    isDrawing = false;
+    lastCellInPath = null;
+    currentPosition = null;
+    currentColor = null;
+    LOGGER.info("Puzzle reset successfully");
+  }
+
+  /**
+   * Advances to the next puzzle
+   */
+  public void nextPuzzle() {
+    LOGGER.info("Moving to next puzzle");
+
+    int nextIndex = puzzleService.getCurrentPuzzleIndex() + 1;
+    if (nextIndex < puzzleService.getPuzzleCount()) {
+      Puzzle nextPuzzle = puzzleService.getPuzzle(nextIndex);
+
+      // Check if we need to update the grid size
+      if (grid.getRows() != nextPuzzle.getRows() || grid.getCols() != nextPuzzle.getCols()) {
+        updateGridSize(nextPuzzle.getRows(), nextPuzzle.getCols());
+      }
+
+      if (puzzleService.loadPuzzle(grid, nextIndex)) {
+        gameBoard.updateView();
+        gameStateService.resetStats();
+        LOGGER.info("Advanced to next puzzle");
+      }
+    } else {
+      LOGGER.info("No more puzzles available");
+    }
+  }
+
+  /**
+   * Returns to the previous puzzle
+   */
+  public void previousPuzzle() {
+    LOGGER.info("Moving to previous puzzle");
+
+    int prevIndex = puzzleService.getCurrentPuzzleIndex() - 1;
+    if (prevIndex >= 0) {
+      Puzzle prevPuzzle = puzzleService.getPuzzle(prevIndex);
+
+      // Check if we need to update the grid size
+      if (grid.getRows() != prevPuzzle.getRows() || grid.getCols() != prevPuzzle.getCols()) {
+        updateGridSize(prevPuzzle.getRows(), prevPuzzle.getCols());
+      }
+
+      if (puzzleService.loadPuzzle(grid, prevIndex)) {
+        gameBoard.updateView();
+        gameStateService.resetStats();
+        LOGGER.info("Returned to previous puzzle");
+      }
+    } else {
+      LOGGER.info("Already at first puzzle");
+    }
   }
 
   public void handleCellClick(int row, int col) {
@@ -72,14 +196,18 @@ public class GameController {
     // Handle endpoint click - start a new path
     if (cell.isEndpoint()) {
       startNewPath(cell);
+      gameStateService.incrementMoves(); // Count starting a new path as a move
       return;
     }
 
     // Handle path end click - continue a path
     if (cell.isPartOfPath() && !cell.isEndpoint()) {
       continuePathFromCell(cell);
+      gameStateService.incrementMoves(); // Count continuing a path as a move
     }
   }
+
+  // Rest of the existing methods...
 
   private void startNewPath(Cell cell) {
     // Clear any existing path of this color
@@ -168,6 +296,7 @@ public class GameController {
     // Check if the puzzle is complete
     if (grid.isComplete()) {
       LOGGER.info("Puzzle solved!");
+      gameStateService.setPuzzleCompleted(true);
       // Additional win condition handling can go here
     }
   }
@@ -193,5 +322,23 @@ public class GameController {
         (next.isEndpoint() && next.getColor() == currentColor);
 
     return isAdjacent && isValidTarget;
+  }
+
+  /**
+   * Gets the current grid being managed by this controller.
+   */
+  public Grid getGrid() {
+    return grid;
+  }
+
+  /**
+   * Gets the game board view.
+   */
+  public GameBoard getGameBoard() {
+    return gameBoard;
+  }
+
+  public PuzzleService getPuzzleService() {
+    return puzzleService;
   }
 }
